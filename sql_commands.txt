@@ -1,0 +1,122 @@
+CREATE SCHEMA IF NOT EXISTS pandemic;
+USE pandemic;
+CREATE TABLE IF NOT EXISTS country (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    entity VARCHAR(50) NOT NULL,
+    code VARCHAR(10) NOT NULL
+    );
+
+INSERT INTO country (Entity, Code)
+SELECT DISTINCT Entity, Code FROM infectious_cases;
+
+CREATE TABLE cases like infectious_cases;
+
+ALTER TABLE cases
+ADD COLUMN id INT AUTO_INCREMENT PRIMARY KEY first,
+ADD COLUMN country_id INT;
+
+ALTER TABLE cases
+DROP COLUMN Entity,
+DROP COLUMN Code;
+
+ALTER TABLE cases
+ADD CONSTRAINT cases_country_fk
+FOREIGN KEY (country_id) REFERENCES country(id)
+ON DELETE CASCADE
+ON UPDATE CASCADE;
+
+---------------------------------------------------------------------------
+
+USE pandemic;
+INSERT INTO cases (
+    `country_id`,
+    `year`,
+    `Number_yaws`,
+    `polio_cases`,
+    `cases_guinea_worm`,
+    `Number_rabies`,
+    `Number_malaria`,
+    `Number_hiv`,
+    `Number_tuberculosis`,
+    `Number_smallpox`,
+    `Number_cholera_cases`
+)
+(
+select
+	`id`,
+    `year`,
+    `Number_yaws`,
+    `polio_cases`,
+    `cases_guinea_worm`,
+    `Number_rabies`,
+    `Number_malaria`,
+    `Number_hiv`,
+    `Number_tuberculosis`,
+    `Number_smallpox`,
+    `Number_cholera_cases`
+    from infectious_cases
+    inner join country on infectious_cases.Entity=country.entity and infectious_cases.Code=country.Code
+);
+
+select count(*) from cases;
+
+--------------------------------------------------------------------------------------------------------------
+
+USE pandemic;
+select country_id,
+	avg(Number_rabies) average_rabies,
+	min(Number_rabies) min_rabies,
+	max(Number_rabies) max_rabies,
+	sum(Number_rabies) sum_rabies 
+from cases
+where Number_rabies is not null and Number_rabies <> ''
+group by country_id
+order by average_rabies desc
+limit 10;
+
+-----------------------------------------------------------------------------------------------------------------
+
+USE pandemic;
+select
+	Year,
+    makedate(Year, 1) first_day,
+    curdate() current_day,
+    timestampdiff(Year, makedate(Year, 1), curdate()) as diff_years
+from cases;
+
+alter table cases
+add column first_day date,
+add column current_day date,
+add column diff_years int;
+
+set sql_safe_updates = 0;
+update cases set first_day = makedate(Year, 1);
+update cases set current_day = curdate();
+update cases set diff_years = timestampdiff(Year, first_day, current_day);
+set sql_safe_updates = 1;
+select year, first_day, current_day, diff_years from cases;
+
+-----------------------------------------------------------------------------------------------------------------
+
+USE pandemic;
+DELIMITER //
+
+create function YearDifference(input_year int)
+returns int
+deterministic
+begin
+    return timestampdiff(year, makedate(input_year, 1), curdate());
+end//
+
+DELIMITER ;
+
+select Year, YearDifference(Year) as diff_years
+from cases;
+
+update cases
+set diff_years = YearDifference(Year);
+
+select YearDifference(1996) as diff_years;
+
+
+
